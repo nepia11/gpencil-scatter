@@ -4,9 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-"fake-bpy-module-2.83" = "*"
+"fake-bpy-module-2.92" = "*"
 flake8 = "*"
-autopep8 = "*"
 numpy = "*"
 black = "*"
 
