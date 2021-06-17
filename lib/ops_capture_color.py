@@ -1,22 +1,45 @@
 import bpy
 import bgl
+import math
+import numpy as np
 from logging import getLogger
+
 logger = getLogger(__name__)
 
 translation = bpy.app.translations.pgettext
 
 
-def capture_under_cursor(buffer, mouse_x=0, mouse_y=0, type_flg="i") -> list:
+def calc_kernel(x, y, size):
+    if size == 1:
+        return x, y, size
+    half = size / 2
+    p1_x = math.floor(x - half)
+    p1_y = math.floor(y - half)
+    w_h = size
+    return p1_x, p1_y, w_h
+
+
+def average_color(color: list):
+    """複数サンプルした時に平均色を求めたい"""
+    c = color
+    avg_color = [c[i : i + 4] for i in range(0, len(c), 4)]
+    avg_color = np.array(avg_color)
+    avg = np.average(avg_color, axis=0)
+    return avg
+
+
+def capture_under_cursor(buffer, mouse_x=0, mouse_y=0, size=1, type_flg="i") -> list:
     """
     フラットなrgba(float)のlistを返す
     """
+    k = calc_kernel(mouse_x, mouse_y, size)
     # GL_FLOATでバッファ作って読むと馬鹿みたいに重いのでGL_BYTE,GL_UNSIGNED_BYTEになってる
     bgl.glReadBuffer(bgl.GL_FRONT)
     bgl.glReadPixels(
-        mouse_x,
-        mouse_y,
-        1,
-        1,
+        k[0],
+        k[1],
+        k[2],
+        k[2],
         bgl.GL_RGBA,
         bgl.GL_UNSIGNED_BYTE,
         buffer,
@@ -28,7 +51,7 @@ def capture_under_cursor(buffer, mouse_x=0, mouse_y=0, type_flg="i") -> list:
 
 
 def bytes_to_color_code(color: list) -> str:
-    """ RGBAのイテラブルを投げるとカラーコードを返してくれる"""
+    """RGBAのイテラブルを投げるとカラーコードを返してくれる"""
     c = color
     return f"#{c[0]:x}{c[1]:x}{c[2]:x}{c[3]:x}"
 
@@ -39,28 +62,67 @@ def create_buffer(src_width: int = 1, src_height: int = 1):
 
 
 class TEMPLATE_OT_CaptureColor(bpy.types.Operator):
-    """ カーソル下の色を取得するやつ """
+    """カーソル下の色を取得するやつ"""
+
     bl_idname = "template.capture_color"
     bl_label = translation("my operator")
     bl_description = "operator description"
-    bl_options = {"REGISTER", "UNDO"}
-
-    buffer = create_buffer()
+    # bl_options = {"REGISTER", "UNDO"}
+    kernel_size = 3
+    buffer = create_buffer(kernel_size, kernel_size)
+    keymaps = []
     # イベントを受け取りたいときはexecuteの代わりにinvokeが使える
 
     def invoke(self, context, event):
+        gpencil_paint = context.tool_settings.gpencil_paint
+        _show_brush = gpencil_paint.show_brush
+        gpencil_paint.show_brush = False
         color = capture_under_cursor(
-            self.buffer, event.mouse_x, event.mouse_y, "f")
-        context.tool_settings.gpencil_paint.brush.color = (color[:3])
+            self.buffer, event.mouse_x, event.mouse_y, self.kernel_size, "i"
+        )
+        print(color)
+        color = average_color(color)
+        gpencil_paint.brush.color = color[:3]
+        gpencil_paint.show_brush = _show_brush
+
         # brushes = [b for b in bpy.data.brushes]
         # for b in brushes:
         #     b.color = (color[:3])
+
         # logging
         logger.debug(color)
         # infoにメッセージを通知
         self.report({"INFO"}, f"{color}")
         # 正常終了ステータスを返す
         return {"FINISHED"}
+
+    @classmethod
+    def register(cls):
+        wm = bpy.context.window_manager
+        kc = wm.keyconfigs.addon
+        # kc.keys()
+        if kc:
+            # [3Dビューポート] スペースのショートカットキーとして登録
+            km = kc.keymaps.new(name="3D View", space_type="VIEW_3D")
+            # ショートカットキーの登録
+            kmi = km.keymap_items.new(
+                idname=cls.bl_idname,
+                type="P",
+                value="PRESS",
+                shift=False,
+                ctrl=False,
+                alt=False,
+            )
+            # ショートカットキー一覧に登録
+            cls.keymaps.append((km, kmi))
+
+    @classmethod
+    def unregister(cls):
+        for km, kmi in cls.keymaps:
+            # ショートカットキーの登録解除
+            km.keymap_items.remove(kmi)
+        # ショートカットキー一覧をクリア
+        cls.keymaps.clear()
 
 
 class TEMPLATE_PT_CursorColor(bpy.types.Panel):
@@ -71,3 +133,21 @@ class TEMPLATE_PT_CursorColor(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.operator(TEMPLATE_OT_CaptureColor.bl_idname)
+
+
+classses = [TEMPLATE_OT_CaptureColor, TEMPLATE_PT_CursorColor]
+tools = []
+
+
+def register():
+    for c in classses:
+        bpy.utils.register_class(c)
+    for t in tools:
+        bpy.utils.register_tool(t)
+
+
+def unregister():
+    for c in classses:
+        bpy.utils.unregister_class(c)
+    for t in tools:
+        bpy.utils.unregister_tool(t)
