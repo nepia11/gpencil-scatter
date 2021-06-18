@@ -81,12 +81,9 @@ class ScatterGpencilTool(bpy.types.WorkSpaceTool):
         ),
     )
 
-    # def draw_settings(context, layout, tool):
-    # layout.label(icon_value=0)
-    #     pass
-    #     # props = tool.operator_properties("view3d.select_circle")
-    #     # layout.prop(props, "mode")
-    #     # layout.prop(props, "radius")
+    def draw_settings(context, layout, tool):
+        props = tool.operator_properties("gpencil.scatter_ops")
+        layout.prop(props, "scatter_rate")
 
 
 classses = [ScatterGpencilOps]
