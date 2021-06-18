@@ -3,7 +3,7 @@ _module_names = [
     # "ops_template",
     "ops_capture_color",
     # "ui_template",
-    "translations",
+    # "translations",
     "ops_scatter_gpencil",
 ]
 

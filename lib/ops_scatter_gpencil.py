@@ -6,31 +6,75 @@ logger = getLogger(__name__)
 translation = bpy.app.translations.pgettext
 
 
+class ScatterGpencilOps(bpy.types.Operator):
+    """散布ブラシオペレータ"""
+
+    bl_idname = "gpencil.scatter_ops"
+    bl_label = "scatter gpencil"
+    bl_description = ""
+    bl_options = {"REGISTER", "UNDO"}
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "PAINT_GPENCIL"
+
+    _timer = None
+
+    def modal(self, context, event):
+        # 非常終了
+        if event.type == "ESC":
+            self.cancel(context)
+            self.report({"INFO"}, "canceld")
+            return {"CANCELLED"}
+
+        if event.type in {"TIMER", "LEFTMOUSE"}:
+            if event.value == "RELEASE":
+                return {"FINISHED"}
+            # self.report(
+            #     {"INFO"},
+            #     f"type:{event.type},value:{event.value},mouse:{event.mouse_x},{event.mouse_y}",
+            # )
+
+        return {"PASS_THROUGH"}
+
+    def invoke(self, context, event):
+        if context.area.type == "VIEW_3D":
+            print("exec")
+            wm = context.window_manager
+            self._timer = wm.event_timer_add(1, window=context.window)
+            wm.modal_handler_add(self)
+            # return {"FINISHED"}
+            return {"RUNNING_MODAL"}
+        return {"CANCELLED"}
+
+    def cancel(self, context):
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+
+
 class ScatterGpencilTool(bpy.types.WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "PAINT_GPENCIL"
-    bl_idname = "gpencil.scatter"
+    bl_idname = "gpencil.scatter_tool"
     bl_label = "scatter gpencil"
     bl_description = "This is a tooltip\n" "with multiple lines"
-    bl_icon = "brush.gpencil_draw.draw"
-    # bl_icon = "QUESTION"
+    bl_icon = "brush.paint_weight.average"
     bl_widget = None
     bl_keymap = (
         (
-            "template.capture_color",
+            "gpencil.scatter_ops",
             {"type": "LEFTMOUSE", "value": "PRESS"},
-            {"properties": [("wait_for_input", False)]},
+            None,
         ),
     )
 
     # def draw_settings(context, layout, tool):
+    # layout.label(icon_value=0)
     #     pass
     #     # props = tool.operator_properties("view3d.select_circle")
     #     # layout.prop(props, "mode")
     #     # layout.prop(props, "radius")
 
 
-classses = []
+classses = [ScatterGpencilOps]
 tools = [ScatterGpencilTool]
 
 

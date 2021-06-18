@@ -12,13 +12,13 @@ bl_info = {
     "name": "Scatter Gpencil",
     "author": "nepia",
     "version": (0, 1, 0),
-    "blender": (2, 83, 0),
+    "blender": (2, 93, 0),
     "location": "addon (operator,panel,ui) location",
     "description": "addon description",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",
-    "category": "",
+    "category": "Gpencil",
 }
 
 
@@ -83,14 +83,14 @@ def unregister_icons():
 def register():
     for module in namespace.values():
         module.register()
-    register_icons()
+    # register_icons()
     logger.debug("succeeded register template addon")
 
 
 def unregister():
     for module in namespace.values():
         module.unregister()
-    unregister_icons()
+    # unregister_icons()
 
 
 if __name__ == "__main__":
