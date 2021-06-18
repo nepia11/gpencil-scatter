@@ -16,6 +16,11 @@ class ScatterGpencilOps(bpy.types.Operator):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "PAINT_GPENCIL"
 
+    scatter_rate: bpy.props.FloatProperty(
+        name="scatter_rate",
+        default=0.5,
+    )
+
     _timer = None
 
     def modal(self, context, event):
@@ -25,13 +30,16 @@ class ScatterGpencilOps(bpy.types.Operator):
             self.report({"INFO"}, "canceld")
             return {"CANCELLED"}
 
-        if event.type in {"TIMER", "LEFTMOUSE"}:
+        if event.type == "LEFTMOUSE":
             if event.value == "RELEASE":
+                self.cancel(context)
                 return {"FINISHED"}
-            # self.report(
-            #     {"INFO"},
-            #     f"type:{event.type},value:{event.value},mouse:{event.mouse_x},{event.mouse_y}",
-            # )
+
+        if event.type == "TIMER":
+            self.report(
+                {"INFO"},
+                f"rate:{self.scatter_rate}type:{event.type},value:{event.value},mouse:{event.mouse_x},{event.mouse_y}",
+            )
 
         return {"PASS_THROUGH"}
 
@@ -39,10 +47,12 @@ class ScatterGpencilOps(bpy.types.Operator):
         if context.area.type == "VIEW_3D":
             print("exec")
             wm = context.window_manager
-            self._timer = wm.event_timer_add(1, window=context.window)
+            rate = self.scatter_rate
+            self._timer = wm.event_timer_add(rate, window=context.window)
             wm.modal_handler_add(self)
             # return {"FINISHED"}
             return {"RUNNING_MODAL"}
+        self.cancel(context)
         return {"CANCELLED"}
 
     def cancel(self, context):
@@ -62,6 +72,11 @@ class ScatterGpencilTool(bpy.types.WorkSpaceTool):
         (
             "gpencil.scatter_ops",
             {"type": "LEFTMOUSE", "value": "PRESS"},
+            None,
+        ),
+        (
+            "gpencil.scatter_ops",
+            {"type": "LEFTMOUSE", "value": "RELEASE"},
             None,
         ),
     )
