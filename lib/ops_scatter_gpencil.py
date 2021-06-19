@@ -70,11 +70,15 @@ class ScatterGpencilOps(bpy.types.Operator):
     draw_rate: bpy.props.FloatProperty(
         name="draw rate",
         default=0.5,
+        min=0,
+        soft_max=10,
         description="ドローする間隔　単位は秒",
     )
     scatter_rate: bpy.props.FloatProperty(
         name="scatter rate",
         default=0.5,
+        soft_max=100,
+        soft_min=100,
         description="散乱具合",
     )
     size: bpy.props.IntProperty(
@@ -103,8 +107,6 @@ class ScatterGpencilOps(bpy.types.Operator):
                 f"location:{location}"
                 f"pressure:{event.pressure},is_tablet:{event.is_tablet}",
             )
-            # strokeElm = bpy.types.OperatorStrokeElement()
-            # bpy.ops.gpencil.draw(wait_for_input=False)
             stroke = self._stroke
             stroke.points.add(1)
             point = stroke.points[-1]
