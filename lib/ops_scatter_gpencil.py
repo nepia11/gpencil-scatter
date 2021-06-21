@@ -39,18 +39,28 @@ def get_region_and_space(context, area_type, region_type, space_type):
 def get_location3d(
     context: bpy.types.Context,
     event: bpy.types.Event,
-    depth_location=[1, 1, 1],
+    depth_location: mathutils.Vector = mathutils.Vector([1, 1, 1]),
 ):
     # マウスカーソルのリージョン座標を取得
     mv = mathutils.Vector((event.mouse_region_x, event.mouse_region_y))
     # [3Dビューポート] スペースを表示するエリアの [Window] リージョンの
     # 情報と、[3Dビューポート] スペースのスペース情報を取得する
     region, space = get_region_and_space(context, "VIEW_3D", "WINDOW", "VIEW_3D")
-
+    # グローバル座標
     location = view3d_utils.region_2d_to_location_3d(
-        region, space.region_3d, mv, [1, 1, 1]
+        region, space.region_3d, mv, depth_location
     )
+
     return location
+
+
+def get_local_coord_from_global_coord(obj: bpy.types.Object, location):
+    """グローバル座標からローカル座標を求めたい"""
+    matrix = obj.matrix_world
+    matrix = mathutils.Matrix(matrix).inverted_safe()
+    # 行列何もわからん
+    local_location = matrix @ location
+    return local_location
 
 
 def random_vector(factor: float = 1.0):
@@ -69,16 +79,17 @@ class ScatterGpencilOps(bpy.types.Operator):
 
     draw_rate: bpy.props.FloatProperty(
         name="draw rate",
-        default=0.5,
-        min=0,
-        soft_max=10,
-        description="ドローする間隔　単位は秒",
+        default=10,
+        min=0.1,
+        soft_max=60,
+        max=240,
+        description="draw/sec",
     )
     scatter_rate: bpy.props.FloatProperty(
         name="scatter rate",
         default=0.5,
         soft_max=100,
-        soft_min=100,
+        soft_min=0,
         description="散乱具合",
     )
     size: bpy.props.IntProperty(
@@ -86,7 +97,8 @@ class ScatterGpencilOps(bpy.types.Operator):
     )
 
     _timer = None
-    _stroke = None
+    _stroke: bpy.types.GPencilStroke = None
+    _obj: bpy.types.Object = None
 
     def modal(self, context, event):
         # 非常終了
@@ -110,6 +122,7 @@ class ScatterGpencilOps(bpy.types.Operator):
             stroke = self._stroke
             stroke.points.add(1)
             point = stroke.points[-1]
+            location = get_local_coord_from_global_coord(self._obj, location)
             point.co = location + random_vector(self.scatter_rate)
             if event.is_tablet:
                 point.pressure = event.pressure
@@ -122,7 +135,8 @@ class ScatterGpencilOps(bpy.types.Operator):
             if context.active_object.type == "GPENCIL":
                 # いろいろ初期化
                 wm = context.window_manager
-                rate = self.draw_rate
+                # タイマー設定
+                rate = 1 / self.draw_rate
                 self._timer = wm.event_timer_add(rate, window=context.window)
                 wm.modal_handler_add(self)
                 # アクティブレイヤーの取得とストローク生成
@@ -133,10 +147,10 @@ class ScatterGpencilOps(bpy.types.Operator):
                 # アクティブマテリアルを割り当て
                 material_index = bpy.context.object.active_material_index
                 new_stroke.material_index = material_index
-                # 太さ
+                # 太さを設定
                 new_stroke.line_width = self.size
                 self._stroke = new_stroke
-                self.report({"INFO"}, str(dir(strokes)))
+                self._obj = context.active_object
 
                 return {"RUNNING_MODAL"}
         self.cancel(context)
