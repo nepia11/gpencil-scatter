@@ -64,7 +64,10 @@ def get_local_coord_from_global_coord(obj: bpy.types.Object, location):
 
 
 def random_vector(factor: float = 1.0):
-    return mathutils.Vector([random.uniform(-1, 1) * factor for _ in range(3)])
+    random_length = random.gauss(0, 0.2) * factor
+    v1 = mathutils.Vector([random.gauss(0, 0.1) for _ in range(3)])
+    v2 = v1.normalized() * random_length
+    return v2
 
 
 class ScatterGpencilOps(bpy.types.Operator):
@@ -99,8 +102,33 @@ class ScatterGpencilOps(bpy.types.Operator):
     _timer = None
     _stroke: bpy.types.GPencilStroke = None
     _obj: bpy.types.Object = None
+    _i_matrix = None
 
     def modal(self, context, event):
+        if event.type == "TIMER":
+            world_location = get_location3d(context, event)
+            # self.report(
+            #     {"INFO"},
+            #     f"location:{world_location}"
+            #     f"pressure:{event.pressure},is_tablet:{event.is_tablet}",
+            # )
+            stroke = self._stroke
+            # countを増やすと1ドローあたりのポイント数が増える　上げすぎると1ストローク2000を超えたあたりから重くなる
+            count = 1
+            stroke.points.add(count)
+            for point in stroke.points[max(0, len(stroke.points) - count) :]:
+                if self.scatter_rate == 0:
+                    location = world_location
+                else:
+                    location = world_location + random_vector(self.scatter_rate)
+                local_location = self._i_matrix @ location
+                point.co = local_location
+                if event.is_tablet:
+                    point.pressure = event.pressure
+                else:
+                    point.pressure = 1
+            return {"PASS_THROUGH"}
+
         # 非常終了
         if event.type == "ESC":
             self.cancel(context)
@@ -112,22 +140,6 @@ class ScatterGpencilOps(bpy.types.Operator):
                 self.cancel(context)
                 return {"FINISHED"}
 
-        if event.type == "TIMER":
-            location = get_location3d(context, event)
-            self.report(
-                {"INFO"},
-                f"location:{location}"
-                f"pressure:{event.pressure},is_tablet:{event.is_tablet}",
-            )
-            stroke = self._stroke
-            stroke.points.add(1)
-            point = stroke.points[-1]
-            location = get_local_coord_from_global_coord(self._obj, location)
-            point.co = location + random_vector(self.scatter_rate)
-            if event.is_tablet:
-                point.pressure = event.pressure
-            else:
-                point.pressure = 1
         return {"PASS_THROUGH"}
 
     def invoke(self, context, event):
@@ -149,8 +161,11 @@ class ScatterGpencilOps(bpy.types.Operator):
                 new_stroke.material_index = material_index
                 # 太さを設定
                 new_stroke.line_width = self.size
+                # 諸々保存
+                obj: bpy.types.Object = context.active_object
                 self._stroke = new_stroke
-                self._obj = context.active_object
+                self._obj = obj
+                self._i_matrix = mathutils.Matrix(obj.matrix_world).inverted_safe()
 
                 return {"RUNNING_MODAL"}
         self.cancel(context)
@@ -159,6 +174,7 @@ class ScatterGpencilOps(bpy.types.Operator):
     def cancel(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
+        self._timer = None
 
 
 class ScatterGpencilTool(bpy.types.WorkSpaceTool):
