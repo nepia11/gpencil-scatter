@@ -2,7 +2,7 @@ import bpy
 from logging import getLogger
 import mathutils
 from bpy_extras import view3d_utils
-import random
+from random import gauss, uniform
 
 logger = getLogger(__name__)
 
@@ -63,11 +63,16 @@ def get_local_coord_from_global_coord(obj: bpy.types.Object, location):
     return local_location
 
 
-def random_vector(factor: float = 1.0):
-    random_length = random.gauss(0, 0.2) * factor
-    v1 = mathutils.Vector([random.gauss(0, 0.1) for _ in range(3)])
-    v2 = v1.normalized() * random_length
-    return v2
+def random_gauss_vector(factor: float = 1.0):
+    v1 = mathutils.Vector([gauss(0, 0.1) for _ in range(3)])
+    v1 *= factor
+    return v1
+
+
+def random_square_vector(factor: float = 1.0):
+    v1 = mathutils.Vector([uniform(-1, 1) for _ in range(3)])
+    v1 *= factor
+    return v1
 
 
 class ScatterGpencilOps(bpy.types.Operator):
@@ -114,13 +119,13 @@ class ScatterGpencilOps(bpy.types.Operator):
             # )
             stroke = self._stroke
             # countを増やすと1ドローあたりのポイント数が増える　上げすぎると1ストローク2000を超えたあたりから重くなる
-            count = 1
+            count = 10
             stroke.points.add(count)
             for point in stroke.points[max(0, len(stroke.points) - count) :]:
                 if self.scatter_rate == 0:
                     location = world_location
                 else:
-                    location = world_location + random_vector(self.scatter_rate)
+                    location = world_location + random_gauss_vector(self.scatter_rate)
                 local_location = self._i_matrix @ location
                 point.co = local_location
                 if event.is_tablet:
